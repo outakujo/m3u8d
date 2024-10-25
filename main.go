@@ -68,7 +68,7 @@ func main() {
 	}
 	loader := NewLoader(maxParallel, verbose)
 	fisn := wk + "/files.txt"
-	files, err := os.OpenFile(fisn, os.O_CREATE, os.ModePerm)
+	files, err := os.OpenFile(fisn, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		log.Printf("create files %v\n", err)
 		return

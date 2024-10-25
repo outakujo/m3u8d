@@ -21,7 +21,7 @@ func DownloadFile(ur, fn string, timeout time.Duration) error {
 		return err
 	}
 	defer get.Body.Close()
-	file, err := os.OpenFile(fn, os.O_CREATE, os.ModePerm)
+	file, err := os.OpenFile(fn, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		return err
 	}
