@@ -2,9 +2,7 @@
 
 ####Usage param:
 
--mp int
-
-max parallel (default 5)
+-mp int max parallel (default 5)
 
 -o  only download m3u8 file
 
