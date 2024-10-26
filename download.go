@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -41,10 +43,18 @@ func DownloadFileBytes(ur string, timeout time.Duration) ([]byte, error) {
 	return io.ReadAll(get.Body)
 }
 
-func ParseM3u8(m3u8Bytes []byte, urPrefix string) (key, iv []byte, tss []string, err error) {
+type M3u8 struct {
+	Key      []byte
+	Iv       []byte
+	Tss      []string
+	UrPrefix string
+}
+
+func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 	reg := `#EXT-X-KEY:METHOD=AES-128,URI="(.*)",IV=0x(.*)`
-	regTs := `([0-9]*)[.]ts`
+	regTs := `(.*)[.]ts`
 	regInf := `#EXTINF:(.*)`
+	streamInf := `#EXT-X-STREAM-INF:(.*)`
 	keyCompile, err := regexp.Compile(reg)
 	if err != nil {
 		return
@@ -57,30 +67,55 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (key, iv []byte, tss []string,
 	if err != nil {
 		return
 	}
+	streamInfCompile, err := regexp.Compile(streamInf)
+	if err != nil {
+		return
+	}
 	reader := bytes.NewReader(m3u8Bytes)
 	scanner := bufio.NewScanner(reader)
-	tss = make([]string, 0)
-	key = make([]byte, 0)
-	iv = make([]byte, 0)
+	m3u8.Tss = make([]string, 0)
+	m3u8.Key = make([]byte, 0)
+	m3u8.Iv = make([]byte, 0)
+	m3u8.UrPrefix = urPrefix
 	for scanner.Scan() {
 		text := scanner.Text()
+		if streamInfCompile.MatchString(text) {
+			if scanner.Scan() {
+				text = scanner.Text()
+				if text == "" {
+					err = errors.New("parse STREAM-INF failed")
+					return
+				}
+				var nm3u8bs []byte
+				nm3u8bs, err = DownloadFileBytes(UriAbs(text, urPrefix), 0)
+				if err != nil {
+					return
+				}
+				var ufa string
+				ufa, err = UriPrefix(text)
+				if err != nil {
+					return
+				}
+				if ufa != "" {
+					urPrefix = urPrefix + "/" + ufa
+					m3u8.UrPrefix = urPrefix
+				}
+				return ParseM3u8(nm3u8bs, urPrefix)
+			}
+			return
+		}
 		submatch := keyCompile.FindStringSubmatch(text)
 		if len(submatch) == 3 {
 			keys := submatch[1]
 			if keys != "" {
-				urKey := keys
-				match, _ := regexp.MatchString("http(s?)://(.*)", keys)
-				if !match {
-					urKey = urPrefix + "/" + keys
-				}
-				key, err = DownloadFileBytes(urKey, 0)
+				m3u8.Key, err = DownloadFileBytes(UriAbs(keys, urPrefix), 0)
 				if err != nil {
 					return
 				}
 			}
 			ivs := submatch[2]
 			if ivs != "" {
-				iv, err = hex.DecodeString(ivs)
+				m3u8.Iv, err = hex.DecodeString(ivs)
 				if err != nil {
 					return
 				}
@@ -94,9 +129,35 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (key, iv []byte, tss []string,
 		text := scanner.Text()
 		ts := tsCompile.FindString(text)
 		if ts != "" {
-			tss = append(tss, ts)
+			m3u8.Tss = append(m3u8.Tss, ts)
 		}
 	}
+	return
+}
+
+func UriAbs(uri, urPrefix string) string {
+	match, _ := regexp.MatchString("http(s?)://(.*)", uri)
+	if match {
+		return uri
+	}
+	return urPrefix + "/" + uri
+}
+
+func UriPrefix(uri string) (pf string, err error) {
+	if !strings.Contains(uri, "/") {
+		return
+	}
+	reg := `(.*)/.*[.]m3u8`
+	m3u8Compile, err := regexp.Compile(reg)
+	if err != nil {
+		return
+	}
+	submatch := m3u8Compile.FindStringSubmatch(uri)
+	if len(submatch) != 2 {
+		err = errors.New("not be m3u8 url")
+		return
+	}
+	pf = submatch[1]
 	return
 }
 

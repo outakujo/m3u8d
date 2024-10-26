@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -32,18 +31,11 @@ func main() {
 		return
 	}
 	_ = os.MkdirAll(wk, os.ModePerm)
-	reg := `(.*)/.*[.]m3u8`
-	m3u8Compile, err := regexp.Compile(reg)
+	urPrefix, err := UriPrefix(ur)
 	if err != nil {
-		log.Printf("Compile reg: %v %v\n", reg, err)
+		log.Printf("UriPrefix %v\n", err)
 		return
 	}
-	submatch := m3u8Compile.FindStringSubmatch(ur)
-	if len(submatch) != 2 {
-		log.Printf("not be m3u8 url\n")
-		return
-	}
-	urPrefix := submatch[1]
 	if only {
 		_, fn, _ := strings.Cut(ur, urPrefix+"/")
 		if fn != "" {
@@ -59,16 +51,17 @@ func main() {
 		log.Printf("DownloadFileBytes %v\n", err)
 		return
 	}
-	key, iv, tss, err := ParseM3u8(bs, urPrefix)
+	m3u8, err := ParseM3u8(bs, urPrefix)
 	if err != nil {
 		log.Printf("ParseM3u8 %v\n", err)
 		return
 	}
-	if len(key) != 0 {
+	if len(m3u8.Key) != 0 {
 		log.Printf("key: %v iv: 0x%v tsSum: %v\n",
-			hex.EncodeToString(key), hex.EncodeToString(iv), len(tss))
+			hex.EncodeToString(m3u8.Key), hex.EncodeToString(m3u8.Iv),
+			len(m3u8.Tss))
 	} else {
-		log.Printf("tsSum: %v\n", len(tss))
+		log.Printf("tsSum: %v\n", len(m3u8.Tss))
 	}
 	loader := NewLoader(maxParallel, verbose)
 	fisn := wk + "/files.txt"
@@ -79,12 +72,12 @@ func main() {
 	}
 	defer files.Close()
 	fsm := make(map[int]string)
-	for i, s := range tss {
+	for i, s := range m3u8.Tss {
 		go func(ind int, ts string) {
 			var afc = func(w Work, data []byte) (err error) {
 				dst := data
-				if len(key) != 0 {
-					dst, err = AesDecryptByCBC(data, key, iv)
+				if len(m3u8.Key) != 0 {
+					dst, err = AesDecryptByCBC(data, m3u8.Key, m3u8.Iv)
 					if err != nil {
 						err = fmt.Errorf("AesDecryptByCBC %v", err)
 						return
@@ -105,7 +98,7 @@ func main() {
 				}
 				return
 			}
-			loader.Do(Work{Ur: urPrefix + "/" + ts, AfterFun: afc})
+			loader.Do(Work{Ur: m3u8.UrPrefix + "/" + ts, AfterFun: afc})
 		}(i, s)
 	}
 	loader.Wait()
