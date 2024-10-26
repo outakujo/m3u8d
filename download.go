@@ -103,7 +103,7 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (key, iv []byte, tss []string,
 type Work struct {
 	Ur       string
 	Timeout  time.Duration
-	AfterFun func(w Work, data []byte)
+	AfterFun func(w Work, data []byte) error
 }
 
 type Loader struct {
@@ -141,9 +141,16 @@ func (l *Loader) Do(w Work) {
 					log.Printf("DownloadFile %v %v\n", w.Ur, err)
 				}
 			} else {
-				l.succNum++
 				if w.AfterFun != nil {
-					w.AfterFun(w, fileBytes)
+					err = w.AfterFun(w, fileBytes)
+					if err != nil {
+						l.errNum++
+						if l.verbose {
+							log.Printf("AfterFun %v %v\n", w.Ur, err)
+						}
+					} else {
+						l.succNum++
+					}
 				}
 			}
 			l.wait.Done()

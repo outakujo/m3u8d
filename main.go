@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -17,11 +19,13 @@ func main() {
 	var maxParallel int
 	var verbose bool
 	var only bool
+	var mp4 bool
 	flag.StringVar(&ur, "ur", "", "m3u8 url")
 	flag.StringVar(&wk, "wk", "m3u8cache", "work dir")
 	flag.IntVar(&maxParallel, "mp", 5, "max parallel")
 	flag.BoolVar(&verbose, "v", false, "verbose")
 	flag.BoolVar(&only, "o", false, "only download m3u8 file")
+	flag.BoolVar(&mp4, "mp4", false, "ffmpeg out mp4")
 	flag.Parse()
 	if ur == "" {
 		log.Printf("m3u8 url not be empty\n")
@@ -77,35 +81,40 @@ func main() {
 	fsm := make(map[int]string)
 	for i, s := range tss {
 		go func(ind int, ts string) {
-			loader.Do(Work{Ur: urPrefix + "/" + ts, AfterFun: func(w Work, data []byte) {
+			var afc = func(w Work, data []byte) (err error) {
 				dst := data
-				var err error
 				if len(key) != 0 {
 					dst, err = AesDecryptByCBC(data, key, iv)
-					if err != nil && verbose {
-						log.Printf("AesDecryptByCBC %v %v\n", w.Ur, err)
+					if err != nil {
+						err = fmt.Errorf("AesDecryptByCBC %v", err)
 						return
 					}
 				}
 				sfn := wk + "/" + ts
 				err = os.WriteFile(sfn, dst, os.ModePerm)
-				if err != nil && verbose {
-					log.Printf("WriteFile %v %v\n", w.Ur, err)
+				if err != nil {
+					err = fmt.Errorf("WriteFile %v", err)
 				} else {
-					abs, err := filepath.Abs(sfn)
+					var abs string
+					abs, err = filepath.Abs(sfn)
 					if err != nil {
-						log.Printf("file abs %v %v\n", sfn, abs)
+						err = fmt.Errorf("file abs %v", err)
 						return
 					}
 					fsm[ind] = fmt.Sprintf("file '%v'\n", abs)
 				}
-			}})
+				return
+			}
+			loader.Do(Work{Ur: urPrefix + "/" + ts, AfterFun: afc})
 		}(i, s)
 	}
 	loader.Wait()
 	succ, errn, cost := loader.Stat()
 	log.Printf("download succNum: %v errNum: %v cost: %s\n", succ, errn, cost)
 	ln := len(fsm)
+	if ln == 0 {
+		return
+	}
 	for i := 0; i < ln; i++ {
 		_, _ = files.WriteString(fsm[i])
 	}
@@ -114,5 +123,21 @@ func main() {
 		log.Printf("file abs %v %v\n", fisn, abs)
 		return
 	}
-	log.Printf("please run\nffmpeg -f concat -safe 0 -i %v -c copy out.mp4", abs)
+	fcp := []string{"-f", "concat", "-safe", "0",
+		"-i", abs, "-c", "copy", "out.mp4"}
+	fcpj := strings.Join(fcp, " ")
+	if mp4 {
+		log.Printf("ffmpeg %v\n", fcpj)
+		command := exec.Command("ffmpeg", fcp...)
+		command.Stdout = os.Stdout
+		err = command.Run()
+		if err != nil {
+			log.Printf("exec ffmpeg %v\n", err)
+		} else {
+			time.Sleep(time.Second)
+			_ = os.RemoveAll(wk)
+		}
+	} else {
+		log.Printf("please run\nffmpeg %v\n", fcpj)
+	}
 }
