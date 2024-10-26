@@ -46,8 +46,13 @@ func DownloadFileBytes(ur string, timeout time.Duration) ([]byte, error) {
 type M3u8 struct {
 	Key      []byte
 	Iv       []byte
-	Tss      []string
+	Tss      []Ts
 	UrPrefix string
+}
+
+type Ts struct {
+	Name  string
+	Value string
 }
 
 func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
@@ -73,7 +78,7 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 	}
 	reader := bytes.NewReader(m3u8Bytes)
 	scanner := bufio.NewScanner(reader)
-	m3u8.Tss = make([]string, 0)
+	m3u8.Tss = make([]Ts, 0)
 	m3u8.Key = make([]byte, 0)
 	m3u8.Iv = make([]byte, 0)
 	m3u8.UrPrefix = urPrefix
@@ -129,7 +134,10 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 		text := scanner.Text()
 		ts := tsCompile.FindString(text)
 		if ts != "" {
-			m3u8.Tss = append(m3u8.Tss, ts)
+			m3u8.Tss = append(m3u8.Tss, Ts{
+				Name:  ts,
+				Value: strings.TrimSpace(text),
+			})
 		}
 	}
 	return

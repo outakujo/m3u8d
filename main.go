@@ -72,8 +72,8 @@ func main() {
 	}
 	defer files.Close()
 	fsm := make(map[int]string)
-	for i, s := range m3u8.Tss {
-		go func(ind int, ts string) {
+	for i, t := range m3u8.Tss {
+		go func(ind int, ts Ts) {
 			var afc = func(w Work, data []byte) (err error) {
 				dst := data
 				if len(m3u8.Key) != 0 {
@@ -83,7 +83,7 @@ func main() {
 						return
 					}
 				}
-				sfn := wk + "/" + ts
+				sfn := wk + "/" + ts.Name
 				err = os.WriteFile(sfn, dst, os.ModePerm)
 				if err != nil {
 					err = fmt.Errorf("WriteFile %v", err)
@@ -98,8 +98,8 @@ func main() {
 				}
 				return
 			}
-			loader.Do(Work{Ur: m3u8.UrPrefix + "/" + ts, AfterFun: afc})
-		}(i, s)
+			loader.Do(Work{Ur: m3u8.UrPrefix + "/" + ts.Value, AfterFun: afc})
+		}(i, t)
 	}
 	loader.Wait()
 	succ, errn, cost := loader.Stat()
