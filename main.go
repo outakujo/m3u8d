@@ -83,7 +83,7 @@ func main() {
 						return
 					}
 				}
-				sfn := wk + "/" + ts.Name
+				sfn := wk + "/" + ts.Name + ".ts"
 				err = os.WriteFile(sfn, dst, os.ModePerm)
 				if err != nil {
 					err = fmt.Errorf("WriteFile %v", err)

@@ -57,7 +57,7 @@ type Ts struct {
 
 func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 	reg := `#EXT-X-KEY:METHOD=AES-128,URI="(.*)",IV=0x(.*)`
-	regTs := `(.*)[.]ts`
+	regTs := `(.*)[.](ts|jpg|jpeg|jfif|pjpeg|pjp|png|webp|gif)`
 	regInf := `#EXTINF:(.*)`
 	streamInf := `#EXT-X-STREAM-INF:(.*)`
 	keyCompile, err := regexp.Compile(reg)
@@ -135,7 +135,7 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 		ts := tsCompile.FindString(text)
 		if ts != "" {
 			m3u8.Tss = append(m3u8.Tss, Ts{
-				Name:  ts,
+				Name:  strings.Split(strings.TrimSpace(ts), ".")[0],
 				Value: strings.TrimSpace(text),
 			})
 		}
