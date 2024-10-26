@@ -4,6 +4,8 @@
 
 -mp int max parallel (default 5)
 
+-mp4 ffmpeg out mp4
+
 -o  only download m3u8 file
 
 -ur string m3u8 url
