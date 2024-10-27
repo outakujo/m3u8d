@@ -24,10 +24,12 @@ m3u8d -mp4 -ur "m3u8链接"
 
 -mp4 ffmpeg out mp4
 
--o  only download m3u8 file
+-o only download m3u8 file
+
+-st int single request timeout(seconds) (default 5)
 
 -ur string m3u8 url
 
--v  verbose
+-v verbose
 
 -wk string work dir (default "m3u8cache")

@@ -19,9 +19,11 @@ func main() {
 	var verbose bool
 	var only bool
 	var mp4 bool
+	var singleTimeout int
 	flag.StringVar(&ur, "ur", "", "m3u8 url")
 	flag.StringVar(&wk, "wk", "m3u8cache", "work dir")
 	flag.IntVar(&maxParallel, "mp", 5, "max parallel")
+	flag.IntVar(&singleTimeout, "st", 5, "single request timeout(seconds)")
 	flag.BoolVar(&verbose, "v", false, "verbose")
 	flag.BoolVar(&only, "o", false, "only download m3u8 file")
 	flag.BoolVar(&mp4, "mp4", false, "ffmpeg out mp4")
@@ -73,6 +75,14 @@ func main() {
 	defer files.Close()
 	fsm := make(map[int]string)
 	for i, t := range m3u8.Tss {
+		fn := wk + "/" + t.Name + ".ts"
+		if FileIsExist(fn) {
+			err = saveToMap(i, fn, fsm)
+			if err != nil && verbose {
+				log.Printf("saveToMap %v\n", err)
+			}
+			continue
+		}
 		go func(ind int, ts Ts) {
 			var afc = func(w Work, data []byte) (err error) {
 				dst := data
@@ -88,17 +98,12 @@ func main() {
 				if err != nil {
 					err = fmt.Errorf("WriteFile %v", err)
 				} else {
-					var abs string
-					abs, err = filepath.Abs(sfn)
-					if err != nil {
-						err = fmt.Errorf("file abs %v", err)
-						return
-					}
-					fsm[ind] = fmt.Sprintf("file '%v'\n", abs)
+					err = saveToMap(ind, sfn, fsm)
 				}
 				return
 			}
-			loader.Do(Work{Ur: m3u8.UrPrefix + "/" + ts.Value, AfterFun: afc})
+			loader.Do(Work{Ur: m3u8.UrPrefix + "/" + ts.Value, AfterFun: afc,
+				Timeout: time.Duration(singleTimeout) * time.Second})
 		}(i, t)
 	}
 	loader.Wait()
@@ -133,4 +138,18 @@ func main() {
 	} else {
 		log.Printf("please run\nffmpeg %v\n", fcpj)
 	}
+}
+
+func FileIsExist(fn string) bool {
+	_, err := os.Stat(fn)
+	return !os.IsNotExist(err)
+}
+
+func saveToMap(ind int, fn string, m map[int]string) error {
+	abs, err := filepath.Abs(fn)
+	if err != nil {
+		return fmt.Errorf("file abs %v", err)
+	}
+	m[ind] = fmt.Sprintf("file '%v'\n", abs)
+	return nil
 }
