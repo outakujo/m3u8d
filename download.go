@@ -144,11 +144,15 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 }
 
 func UriAbs(uri, urPrefix string) string {
-	match, _ := regexp.MatchString("http(s?)://(.*)", uri)
-	if match {
+	if IsHttp(uri) {
 		return uri
 	}
 	return urPrefix + "/" + uri
+}
+
+func IsHttp(uri string) bool {
+	match, _ := regexp.MatchString("http(s?)://(.*)", uri)
+	return match
 }
 
 func UriPrefix(uri string) (pf string, err error) {

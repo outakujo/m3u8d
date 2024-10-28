@@ -13,47 +13,72 @@ import (
 )
 
 func main() {
-	var ur string
+	var ir string
 	var wk string
 	var maxParallel int
 	var verbose bool
 	var only bool
 	var mp4 bool
 	var singleTimeout int
-	flag.StringVar(&ur, "ur", "", "m3u8 url")
+	var urPrefix string
+	flag.StringVar(&ir, "i", "", "m3u8 url or file")
 	flag.StringVar(&wk, "wk", "m3u8cache", "work dir")
+	flag.StringVar(&urPrefix, "up", "", "m3u8 url prefix")
 	flag.IntVar(&maxParallel, "mp", 5, "max parallel")
 	flag.IntVar(&singleTimeout, "st", 5, "single request timeout(seconds)")
 	flag.BoolVar(&verbose, "v", false, "verbose")
 	flag.BoolVar(&only, "o", false, "only download m3u8 file")
 	flag.BoolVar(&mp4, "mp4", false, "ffmpeg out mp4")
 	flag.Parse()
-	if ur == "" {
-		log.Printf("m3u8 url not be empty\n")
+	if ir == "" {
+		log.Printf("m3u8 url or file not be empty\n")
 		return
+	}
+	var m3u8f string
+	var err error
+	if !IsHttp(ir) {
+		if !FileIsExist(ir) {
+			log.Printf("m3u8 file not exist\n")
+			return
+		}
+		m3u8f = ir
+		if urPrefix == "" {
+			log.Printf("m3u8 url prefix not be empty\n")
+			return
+		}
+	} else {
+		urPrefix, err = UriPrefix(ir)
+		if err != nil {
+			log.Printf("UriPrefix %v\n", err)
+			return
+		}
 	}
 	_ = os.MkdirAll(wk, os.ModePerm)
-	urPrefix, err := UriPrefix(ur)
-	if err != nil {
-		log.Printf("UriPrefix %v\n", err)
-		return
-	}
-	if only {
-		_, fn, _ := strings.Cut(ur, urPrefix+"/")
+	if only && m3u8f == "" {
+		_, fn, _ := strings.Cut(ir, urPrefix+"/")
 		if fn != "" {
-			err := DownloadFile(ur, wk+"/"+fn, 0)
+			err = DownloadFile(ir, wk+"/"+fn, 0)
 			if err != nil {
-				log.Printf("DownloadFile %v %v\n", ur, err)
+				log.Printf("DownloadFile %v %v\n", ir, err)
 			}
 		}
 		return
 	}
-	bs, err := DownloadFileBytes(ur, 0)
-	if err != nil {
-		log.Printf("DownloadFileBytes %v\n", err)
-		return
+	var m3u8bs []byte
+	if m3u8f == "" {
+		m3u8bs, err = DownloadFileBytes(ir, time.Duration(singleTimeout)*time.Second)
+		if err != nil {
+			log.Printf("DownloadFileBytes %v\n", err)
+			return
+		}
+	} else {
+		m3u8bs, err = os.ReadFile(m3u8f)
+		if err != nil {
+			log.Printf("ReadFileBytes %v\n", err)
+			return
+		}
 	}
-	m3u8, err := ParseM3u8(bs, urPrefix)
+	m3u8, err := ParseM3u8(m3u8bs, urPrefix)
 	if err != nil {
 		log.Printf("ParseM3u8 %v\n", err)
 		return
