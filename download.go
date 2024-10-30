@@ -132,11 +132,15 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 	}
 	for scanner.Scan() {
 		text := scanner.Text()
-		ts := tsCompile.FindString(text)
+		ts := strings.TrimSpace(tsCompile.FindString(text))
 		if ts != "" {
+			if IsHttp(ts) {
+				index := strings.LastIndex(ts, "/")
+				ts = ts[index+1:]
+			}
 			m3u8.Tss = append(m3u8.Tss, Ts{
-				Name:  strings.Split(strings.TrimSpace(ts), ".")[0],
-				Value: strings.TrimSpace(text),
+				Name:  strings.Split(ts, ".")[0],
+				Value: UriAbs(strings.TrimSpace(text), urPrefix),
 			})
 		}
 	}

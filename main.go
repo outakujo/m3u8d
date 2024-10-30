@@ -178,7 +178,7 @@ func ParseDown(ir, urPrefix string) (files string, err error) {
 				}
 				return
 			}
-			loader.Do(Work{Ur: m3u8.UrPrefix + "/" + ts.Value, AfterFun: afc,
+			loader.Do(Work{Ur: ts.Value, AfterFun: afc,
 				Timeout: time.Duration(singleTimeout) * time.Second})
 		}(i, t)
 	}
