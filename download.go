@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -23,6 +24,9 @@ func DownloadFile(ur, fn string, timeout time.Duration) error {
 		return err
 	}
 	defer get.Body.Close()
+	if get.StatusCode != http.StatusOK {
+		return fmt.Errorf("httpcode be %v", get.StatusCode)
+	}
 	file, err := os.OpenFile(fn, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		return err
@@ -40,6 +44,9 @@ func DownloadFileBytes(ur string, timeout time.Duration) ([]byte, error) {
 		return nil, err
 	}
 	defer get.Body.Close()
+	if get.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("httpcode be %v", get.StatusCode)
+	}
 	return io.ReadAll(get.Body)
 }
 
