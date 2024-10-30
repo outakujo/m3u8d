@@ -22,6 +22,8 @@ m3u8d -mp4 -i "m3u8链接"
 
 -i string m3u8 url or file
 
+-mfn string mp4 file name (default "out")
+
 -mp int max parallel (default 5)
 
 -mp4 ffmpeg out mp4
