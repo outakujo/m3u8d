@@ -58,8 +58,9 @@ type M3u8 struct {
 }
 
 type Ts struct {
-	Name  string
-	Value string
+	Name   string
+	Value  string
+	EXTINF string
 }
 
 func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
@@ -89,6 +90,7 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 	m3u8.Key = make([]byte, 0)
 	m3u8.Iv = make([]byte, 0)
 	m3u8.UrPrefix = urPrefix
+	firstExinf := ""
 	for scanner.Scan() {
 		text := scanner.Text()
 		if streamInfCompile.MatchString(text) {
@@ -134,9 +136,11 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 			}
 		}
 		if infCompile.MatchString(text) {
+			firstExinf = text
 			break
 		}
 	}
+	cExinf := firstExinf
 	for scanner.Scan() {
 		text := scanner.Text()
 		ts := strings.TrimSpace(tsCompile.FindString(text))
@@ -146,9 +150,13 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 				ts = ts[index+1:]
 			}
 			m3u8.Tss = append(m3u8.Tss, Ts{
-				Name:  strings.Split(ts, ".")[0],
-				Value: UriAbs(strings.TrimSpace(text), urPrefix),
+				Name:   strings.Split(ts, ".")[0],
+				Value:  UriAbs(strings.TrimSpace(text), urPrefix),
+				EXTINF: cExinf,
 			})
+			if scanner.Scan() {
+				cExinf = scanner.Text()
+			}
 		}
 	}
 	return

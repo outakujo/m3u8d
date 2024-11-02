@@ -24,6 +24,7 @@ func main() {
 	var ir string
 	var only bool
 	var mp4 bool
+	var gen bool
 	var mp4fn string
 	var urPrefix string
 	flag.StringVar(&ir, "i", "", "m3u8 url or file")
@@ -35,6 +36,7 @@ func main() {
 	flag.BoolVar(&verbose, "v", false, "verbose")
 	flag.BoolVar(&only, "o", false, "only download m3u8 file")
 	flag.BoolVar(&mp4, "mp4", false, "ffmpeg out mp4")
+	flag.BoolVar(&gen, "gen", false, "gen index.m3u8")
 	flag.Parse()
 	if ir == "" {
 		log.Printf("m3u8 url or file not be empty\n")
@@ -49,10 +51,13 @@ func main() {
 		}
 		os.Exit(0)
 	}
-	files, err := ParseDown(ir, urPrefix)
+	files, err := ParseDown(ir, urPrefix, gen)
 	if err != nil {
 		log.Printf("parse down %v\n", err)
 		os.Exit(1)
+	}
+	if gen {
+		os.Exit(0)
 	}
 	err = MergeMp4(files, mp4fn, mp4)
 	if err != nil {
@@ -125,13 +130,17 @@ func MergeMp4(files, out string, flag bool) error {
 	return nil
 }
 
-func ParseDown(ir, urPrefix string) (files string, err error) {
+func ParseDown(ir, urPrefix string, genIndex bool) (files string, err error) {
 	m3u8bs, prefix, err := getInputBytes(ir, urPrefix)
 	if err != nil {
 		return
 	}
 	m3u8, err := ParseM3u8(m3u8bs, prefix)
 	if err != nil {
+		return
+	}
+	if genIndex {
+		err = genM3u8Index(m3u8.Tss)
 		return
 	}
 	if len(m3u8.Key) != 0 {
@@ -198,6 +207,26 @@ func ParseDown(ir, urPrefix string) (files string, err error) {
 		err = fmt.Errorf("file abs %v %v", fisn, err)
 	}
 	return
+}
+
+func genM3u8Index(tss []Ts) error {
+	prefix := `#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:4
+#EXT-X-MEDIA-SEQUENCE:0
+#EXT-X-PLAYLIST-TYPE:VOD`
+	file, err := os.OpenFile(wk+"/index.m3u8", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	_, _ = file.WriteString(prefix + "\n")
+	for _, t := range tss {
+		_, _ = file.WriteString(t.EXTINF + "\n")
+		_, _ = file.WriteString(t.Name + ".ts\n")
+	}
+	_, _ = file.WriteString("#EXT-X-ENDLIST\n")
+	return nil
 }
 
 func FileIsExist(fn string) bool {
