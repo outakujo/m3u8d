@@ -20,6 +20,8 @@ m3u8d -mp4 -i "m3u8链接"
 
 #### Param:
 
+-gen gen index.m3u8
+
 -i string m3u8 url or file
 
 -mfn string mp4 file name (default "out")
