@@ -36,7 +36,7 @@ func main() {
 	flag.BoolVar(&verbose, "v", false, "verbose")
 	flag.BoolVar(&only, "o", false, "only download m3u8 file")
 	flag.BoolVar(&mp4, "mp4", false, "ffmpeg out mp4")
-	flag.BoolVar(&gen, "gen", false, "gen index.m3u8")
+	flag.BoolVar(&gen, "gen", false, "generate new index.m3u8")
 	flag.Parse()
 	if ir == "" {
 		log.Printf("m3u8 url or file not be empty\n")
