@@ -59,16 +59,18 @@ type M3u8 struct {
 }
 
 type Ts struct {
-	Name   string
-	Value  string
-	EXTINF string
+	Name      string
+	Value     string
+	EXTINF    string
+	IsDecrypt bool
 }
 
 func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
-	reg := `#EXT-X-KEY:METHOD=AES-128,URI="(.*)",IV=0x(.*)`
+	reg := `#EXT-X-KEY:METHOD=AES-128,URI="(.*)"(,IV=0x(.*))?`
 	regTs := `(.*)[.](ts|jpg|jpeg|jfif|pjpeg|pjp|png|webp|gif)`
 	regInf := `#EXTINF:(.*)`
 	streamInf := `#EXT-X-STREAM-INF:(.*)`
+	notMethod := `#EXT-X-KEY:METHOD=NONE`
 	keyCompile, err := regexp.Compile(reg)
 	if err != nil {
 		return
@@ -85,13 +87,45 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 	if err != nil {
 		return
 	}
+	notMethodCompile, err := regexp.Compile(notMethod)
+	if err != nil {
+		return
+	}
 	reader := bytes.NewReader(m3u8Bytes)
 	scanner := bufio.NewScanner(reader)
 	m3u8.Tss = make([]Ts, 0)
 	m3u8.Key = make([]byte, 0)
 	m3u8.Iv = make([]byte, 0)
 	m3u8.UrPrefix = urPrefix
-	firstExinf := ""
+	var getkey = func(text string) (find bool) {
+		text = strings.TrimSpace(text)
+		submatch := keyCompile.FindStringSubmatch(text)
+		ln := len(submatch)
+		if ln < 2 {
+			return
+		}
+		keys := strings.TrimSpace(submatch[1])
+		if keys != "" {
+			m3u8.Key, err = DownloadFileBytes(UriAbs(keys, urPrefix), 0)
+			if err != nil {
+				return
+			} else {
+				find = true
+			}
+		}
+		if ln < 4 {
+			return
+		}
+		ivs := strings.TrimSpace(submatch[3])
+		if ivs != "" {
+			m3u8.Iv, err = hex.DecodeString(ivs)
+			if err != nil {
+				return
+			}
+		}
+		return
+	}
+	isDecrypt := false
 	for scanner.Scan() {
 		text := scanner.Text()
 		if streamInfCompile.MatchString(text) {
@@ -119,45 +153,32 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 			}
 			return
 		}
-		submatch := keyCompile.FindStringSubmatch(text)
-		if len(submatch) == 3 {
-			keys := submatch[1]
-			if keys != "" {
-				m3u8.Key, err = DownloadFileBytes(UriAbs(keys, urPrefix), 0)
-				if err != nil {
-					return
-				}
-			}
-			ivs := submatch[2]
-			if ivs != "" {
-				m3u8.Iv, err = hex.DecodeString(ivs)
-				if err != nil {
-					return
-				}
-			}
+		if notMethodCompile.MatchString(text) {
+			isDecrypt = false
+		}
+		if getkey(text) {
+			isDecrypt = true
 		}
 		if infCompile.MatchString(text) {
-			firstExinf = text
-			break
-		}
-	}
-	cExinf := firstExinf
-	for scanner.Scan() {
-		text := scanner.Text()
-		ts := strings.TrimSpace(tsCompile.FindString(text))
-		if ts != "" {
+			exinf := text
+			if !scanner.Scan() {
+				continue
+			}
+			tst := strings.TrimSpace(scanner.Text())
+			ts := tsCompile.FindString(tst)
+			if ts == "" {
+				continue
+			}
 			index := strings.LastIndex(ts, "/")
 			if index != -1 {
 				ts = ts[index+1:]
 			}
 			m3u8.Tss = append(m3u8.Tss, Ts{
-				Name:   strings.Split(ts, ".")[0],
-				Value:  UriAbs(strings.TrimSpace(text), urPrefix),
-				EXTINF: cExinf,
+				Name:      strings.Split(ts, ".")[0],
+				Value:     UriAbs(tst, urPrefix),
+				EXTINF:    exinf,
+				IsDecrypt: isDecrypt,
 			})
-			if scanner.Scan() {
-				cExinf = scanner.Text()
-			}
 		}
 	}
 	return

@@ -13,7 +13,7 @@ func AesDecryptByCBC(encrypted, key, iv []byte) (dst []byte, err error) {
 		err = errors.New("key长度必须是 16、24、32 其中一个")
 		return
 	}
-	if iv != nil {
+	if iv != nil && len(iv) != 0 {
 		if _, ok := keyLenMap[len(iv)]; !ok {
 			err = errors.New("iv长度必须是 16、24、32 其中一个")
 			return
@@ -21,7 +21,7 @@ func AesDecryptByCBC(encrypted, key, iv []byte) (dst []byte, err error) {
 	}
 	block, _ := aes.NewCipher(key)
 	var blockMode cipher.BlockMode
-	if iv != nil {
+	if iv != nil && len(iv) != 0 {
 		blockMode = cipher.NewCBCDecrypter(block, iv)
 	} else {
 		blockSize := block.BlockSize()

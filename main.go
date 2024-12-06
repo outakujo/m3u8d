@@ -144,9 +144,11 @@ func ParseDown(ir, urPrefix string, genIndex bool) (files string, err error) {
 		return
 	}
 	if len(m3u8.Key) != 0 {
-		log.Printf("key: %v iv: 0x%v tsSum: %v\n",
-			hex.EncodeToString(m3u8.Key), hex.EncodeToString(m3u8.Iv),
-			len(m3u8.Tss))
+		as := fmt.Sprintf("key: %v", hex.EncodeToString(m3u8.Key))
+		if len(m3u8.Iv) != 0 {
+			as = fmt.Sprintf("%v iv: 0x%v", as, hex.EncodeToString(m3u8.Iv))
+		}
+		log.Printf("%v tsSum: %v\n", as, len(m3u8.Tss))
 	} else {
 		log.Printf("tsSum: %v\n", len(m3u8.Tss))
 	}
@@ -171,7 +173,7 @@ func ParseDown(ir, urPrefix string, genIndex bool) (files string, err error) {
 		go func(ind int, ts Ts) {
 			var afc = func(w Work, data []byte) (err error) {
 				dst := data
-				if len(m3u8.Key) != 0 {
+				if ts.IsDecrypt && len(m3u8.Key) != 0 {
 					dst, err = AesDecryptByCBC(data, m3u8.Key, m3u8.Iv)
 					if err != nil {
 						err = fmt.Errorf("AesDecryptByCBC %v", err)
