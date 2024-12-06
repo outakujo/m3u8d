@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -165,6 +166,13 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 func UriAbs(uri, urPrefix string) string {
 	if IsHttp(uri) {
 		return uri
+	}
+	if string(uri[0]) == "/" {
+		parse, err := url.Parse(urPrefix)
+		if err != nil {
+			return ""
+		}
+		return fmt.Sprintf("%v://%v%v", parse.Scheme, parse.Host, uri)
 	}
 	return urPrefix + "/" + uri
 }
