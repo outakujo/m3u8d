@@ -170,7 +170,7 @@ func ParseDown(ir, urPrefix string, genIndex bool) (files string, err error) {
 			}
 			continue
 		}
-		go func(ind int, ts Ts) {
+		func(ind int, ts Ts) {
 			var afc = func(w Work, data []byte) (err error) {
 				dst := data
 				if ts.IsDecrypt && len(m3u8.Key) != 0 {
