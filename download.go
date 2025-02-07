@@ -274,6 +274,9 @@ func (l *Loader) Do(w Work) {
 					}
 				}
 			}
+			if l.startTime.IsZero() {
+				l.startTime = time.Now()
+			}
 			l.endTime = time.Now()
 			l.wait.Done()
 		}()
@@ -299,6 +302,5 @@ func (l *Loader) ResetStat() {
 }
 
 func (l *Loader) Wait() {
-	l.startTime = time.Now()
 	l.wait.Wait()
 }
