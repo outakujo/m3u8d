@@ -274,6 +274,7 @@ func (l *Loader) Do(w Work) {
 					}
 				}
 			}
+			l.endTime = time.Now()
 			l.wait.Done()
 		}()
 		<-l.workc
@@ -281,8 +282,11 @@ func (l *Loader) Do(w Work) {
 }
 
 func (l *Loader) Stat() (succ, err int, dur time.Duration) {
-	l.endTime = time.Now()
-	return l.succNum, l.errNum, l.endTime.Sub(l.startTime)
+	var cost time.Duration
+	if !l.endTime.IsZero() {
+		cost = l.endTime.Sub(l.startTime)
+	}
+	return l.succNum, l.errNum, cost
 }
 
 func (l *Loader) ResetStat() {
