@@ -251,6 +251,9 @@ func NewLoader(maxParallel int, verbose bool) *Loader {
 func (l *Loader) Do(w Work) {
 	l.wait.Add(1)
 	l.workc <- struct{}{}
+	if l.startTime.IsZero() {
+		l.startTime = time.Now()
+	}
 	go func() {
 		fileBytes, err := DownloadFileBytes(w.Ur, w.Timeout)
 		go func() {
@@ -273,9 +276,6 @@ func (l *Loader) Do(w Work) {
 						l.succNum++
 					}
 				}
-			}
-			if l.startTime.IsZero() {
-				l.startTime = time.Now()
 			}
 			l.endTime = time.Now()
 			l.wait.Done()
