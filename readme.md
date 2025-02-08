@@ -8,14 +8,24 @@ go install github.com/outakujo/m3u8d@latest
 
 #### Use
 
-```
-m3u8d -mp4 -i m3u8链接
-```
+* 下载ts文件
 
-**m3u8链接中包含&符号，则需要加上双引号**
+m3u8链接中包含&符号，则需要加上双引号，没有则可以不加
 
 ```
-m3u8d -mp4 -i "m3u8链接"
+m3u8d -i "m3u8链接"
+```
+
+网络原因可能会存在部分文件下载失败，可以多次执行，直到errNum为0，即其全部下载成功
+
+```
+download succNum: 256 errNum: 0 cost: 1m32.494006s
+```
+
+* 合并ts到mp4，需要依赖ffmpeg
+
+```
+m3u8d -i "m3u8链接" -mp4
 ```
 
 #### Param:
