@@ -22,7 +22,7 @@ m3u8d -i "m3u8链接"
 download succNum: 256 errNum: 0 cost: 1m32.494006s
 ```
 
-添加request header，"需要转义成\"，整个参数值需要加上双引号
+添加request header，双引号需要转义，整个参数值需要加上双引号
 
 ```
 m3u8d -i "m3u8链接" -jh "{\"refer\":\"http://xxxx\"}"
