@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -27,9 +28,11 @@ func main() {
 	var gen bool
 	var mp4fn string
 	var urPrefix string
+	var jsonHeader string
 	flag.StringVar(&ir, "i", "", "m3u8 url or file")
 	flag.StringVar(&wk, "wk", "m3u8cache", "work dir")
 	flag.StringVar(&urPrefix, "up", "", "m3u8 url prefix")
+	flag.StringVar(&jsonHeader, "jh", "", "json request header")
 	flag.StringVar(&mp4fn, "mfn", "out", "mp4 file name")
 	flag.IntVar(&maxParallel, "mp", 5, "max parallel")
 	flag.IntVar(&singleTimeout, "st", 5, "single request timeout(seconds)")
@@ -42,19 +45,27 @@ func main() {
 		log.Printf("m3u8 url or file not be empty\n")
 		os.Exit(1)
 	}
+	if jsonHeader != "" {
+		heda := make(map[string]string)
+		err := json.Unmarshal([]byte(jsonHeader), &heda)
+		if err != nil {
+			log.Printf("request header not be json %v\n", err)
+			os.Exit(2)
+		}
+	}
 	_ = os.MkdirAll(wk, os.ModePerm)
 	if only {
-		err := onlyDown(ir)
+		err := onlyDown(ir, jsonHeader)
 		if err != nil {
 			log.Printf("only download %v\n", err)
-			os.Exit(1)
+			os.Exit(3)
 		}
 		os.Exit(0)
 	}
-	files, err := ParseDown(ir, urPrefix, gen)
+	files, err := ParseDown(ir, urPrefix, jsonHeader, gen)
 	if err != nil {
 		log.Printf("parse down %v\n", err)
-		os.Exit(1)
+		os.Exit(4)
 	}
 	if gen {
 		os.Exit(0)
@@ -62,18 +73,18 @@ func main() {
 	err = MergeMp4(files, mp4fn, mp4)
 	if err != nil {
 		log.Printf("merge mp4 %v\n", err)
-		os.Exit(1)
+		os.Exit(5)
 	}
 }
 
-func onlyDown(ir string) error {
+func onlyDown(ir, header string) error {
 	prefix, err := UriPrefix(ir)
 	if err != nil {
 		return fmt.Errorf("UriPrefix %v", err)
 	}
 	_, fn, _ := strings.Cut(ir, prefix+"/")
 	if fn != "" {
-		err = DownloadFile(ir, wk+"/"+fn, time.Duration(singleTimeout)*time.Second)
+		err = DownloadFile(ir, header, wk+"/"+fn, time.Duration(singleTimeout)*time.Second)
 		if err != nil {
 			return fmt.Errorf("DownloadFile %v %v", ir, err)
 		}
@@ -81,7 +92,7 @@ func onlyDown(ir string) error {
 	return nil
 }
 
-func getInputBytes(ir, urPrefix string) (m3u8bs []byte, prefix string, err error) {
+func getInputBytes(ir, urPrefix, header string) (m3u8bs []byte, prefix string, err error) {
 	var m3u8f string
 	if !IsHttp(ir) {
 		if !FileIsExist(ir) {
@@ -102,7 +113,7 @@ func getInputBytes(ir, urPrefix string) (m3u8bs []byte, prefix string, err error
 		}
 	}
 	if m3u8f == "" {
-		m3u8bs, err = DownloadFileBytes(ir, time.Duration(singleTimeout)*time.Second)
+		m3u8bs, err = DownloadFileBytes(ir, header, time.Duration(singleTimeout)*time.Second)
 	} else {
 		m3u8bs, err = os.ReadFile(m3u8f)
 	}
@@ -130,12 +141,12 @@ func MergeMp4(files, out string, flag bool) error {
 	return nil
 }
 
-func ParseDown(ir, urPrefix string, genIndex bool) (files string, err error) {
-	m3u8bs, prefix, err := getInputBytes(ir, urPrefix)
+func ParseDown(ir, urPrefix, header string, genIndex bool) (files string, err error) {
+	m3u8bs, prefix, err := getInputBytes(ir, urPrefix, header)
 	if err != nil {
 		return
 	}
-	m3u8, err := ParseM3u8(m3u8bs, prefix)
+	m3u8, err := ParseM3u8(m3u8bs, prefix, header)
 	if err != nil {
 		return
 	}
@@ -159,7 +170,9 @@ func ParseDown(ir, urPrefix string, genIndex bool) (files string, err error) {
 	if err != nil {
 		return
 	}
-	defer filestxt.Close()
+	defer func() {
+		_ = filestxt.Close()
+	}()
 	fsm := make(map[int]string)
 	for i, t := range m3u8.Tss {
 		fn := wk + "/" + t.Name + ".ts"
@@ -189,7 +202,7 @@ func ParseDown(ir, urPrefix string, genIndex bool) (files string, err error) {
 				}
 				return
 			}
-			loader.Do(Work{Ur: ts.Value, AfterFun: afc,
+			loader.Do(Work{Ur: ts.Value, Header: header, AfterFun: afc,
 				Timeout: time.Duration(singleTimeout) * time.Second})
 		}(i, t)
 	}
@@ -221,7 +234,9 @@ func genM3u8Index(tss []Ts) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 	_, _ = file.WriteString(prefix + "\n")
 	for _, t := range tss {
 		_, _ = file.WriteString(t.EXTINF + "\n")

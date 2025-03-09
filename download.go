@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,14 +18,31 @@ import (
 	"time"
 )
 
-func DownloadFile(ur, fn string, timeout time.Duration) error {
+func DownloadFile(ur, fn, jsonHeader string, timeout time.Duration) error {
 	cli := &http.Client{}
 	cli.Timeout = timeout
-	get, err := cli.Get(ur)
+	req, err := http.NewRequest(http.MethodGet, ur, nil)
 	if err != nil {
 		return err
 	}
-	defer get.Body.Close()
+	if jsonHeader != "" {
+		req.Header = make(http.Header)
+		heda := make(map[string]string)
+		err = json.Unmarshal([]byte(jsonHeader), &heda)
+		if err != nil {
+			return err
+		}
+		for k, v := range heda {
+			req.Header.Set(k, v)
+		}
+	}
+	get, err := cli.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = get.Body.Close()
+	}()
 	if get.StatusCode != http.StatusOK {
 		return fmt.Errorf("httpcode be %v", get.StatusCode)
 	}
@@ -37,14 +55,31 @@ func DownloadFile(ur, fn string, timeout time.Duration) error {
 	return err
 }
 
-func DownloadFileBytes(ur string, timeout time.Duration) ([]byte, error) {
+func DownloadFileBytes(ur, jsonHeader string, timeout time.Duration) ([]byte, error) {
 	cli := &http.Client{}
 	cli.Timeout = timeout
-	get, err := cli.Get(ur)
+	req, err := http.NewRequest(http.MethodGet, ur, nil)
 	if err != nil {
 		return nil, err
 	}
-	defer get.Body.Close()
+	if jsonHeader != "" {
+		req.Header = make(http.Header)
+		heda := make(map[string]string)
+		err = json.Unmarshal([]byte(jsonHeader), &heda)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range heda {
+			req.Header.Set(k, v)
+		}
+	}
+	get, err := cli.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = get.Body.Close()
+	}()
 	if get.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("httpcode be %v", get.StatusCode)
 	}
@@ -65,7 +100,7 @@ type Ts struct {
 	IsDecrypt bool
 }
 
-func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
+func ParseM3u8(m3u8Bytes []byte, urPrefix, header string) (m3u8 M3u8, err error) {
 	reg := `#EXT-X-KEY:METHOD=AES-128,URI="(.*)"(,IV=0x(.*))?`
 	regTs := `(.*)[.](ts|jpg|jpeg|jfif|pjpeg|pjp|png|webp|gif)`
 	regInf := `#EXTINF:(.*)`
@@ -106,7 +141,7 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 		}
 		keys := strings.TrimSpace(submatch[1])
 		if keys != "" {
-			m3u8.Key, err = DownloadFileBytes(UriAbs(keys, urPrefix), 0)
+			m3u8.Key, err = DownloadFileBytes(UriAbs(keys, urPrefix), header, 0)
 			if err != nil {
 				return
 			} else {
@@ -136,7 +171,7 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 					return
 				}
 				var nm3u8bs []byte
-				nm3u8bs, err = DownloadFileBytes(UriAbs(text, urPrefix), 0)
+				nm3u8bs, err = DownloadFileBytes(UriAbs(text, urPrefix), header, 0)
 				if err != nil {
 					return
 				}
@@ -149,7 +184,7 @@ func ParseM3u8(m3u8Bytes []byte, urPrefix string) (m3u8 M3u8, err error) {
 					urPrefix = urPrefix + "/" + ufa
 					m3u8.UrPrefix = urPrefix
 				}
-				return ParseM3u8(nm3u8bs, urPrefix)
+				return ParseM3u8(nm3u8bs, urPrefix, header)
 			}
 			return
 		}
@@ -223,6 +258,7 @@ func UriPrefix(uri string) (pf string, err error) {
 
 type Work struct {
 	Ur       string
+	Header   string
 	Timeout  time.Duration
 	AfterFun func(w Work, data []byte) error
 }
@@ -255,7 +291,7 @@ func (l *Loader) Do(w Work) {
 		l.startTime = time.Now()
 	}
 	go func() {
-		fileBytes, err := DownloadFileBytes(w.Ur, w.Timeout)
+		fileBytes, err := DownloadFileBytes(w.Ur, w.Header, w.Timeout)
 		go func() {
 			l.mut.Lock()
 			defer l.mut.Unlock()
