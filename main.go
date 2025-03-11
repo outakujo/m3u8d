@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -174,10 +175,11 @@ func ParseDown(ir, urPrefix, header string, genIndex bool) (files string, err er
 		_ = filestxt.Close()
 	}()
 	fsm := make(map[int]string)
+	mpmut := &sync.Mutex{}
 	for i, t := range m3u8.Tss {
 		fn := wk + "/" + t.Name + ".ts"
 		if FileIsExist(fn) {
-			err = saveToMap(i, fn, fsm)
+			err = saveToMap(i, fn, fsm, mpmut)
 			if err != nil && verbose {
 				log.Printf("saveToMap %v\n", err)
 			}
@@ -198,7 +200,7 @@ func ParseDown(ir, urPrefix, header string, genIndex bool) (files string, err er
 				if err != nil {
 					err = fmt.Errorf("WriteFile %v", err)
 				} else {
-					err = saveToMap(ind, sfn, fsm)
+					err = saveToMap(ind, sfn, fsm, mpmut)
 				}
 				return
 			}
@@ -251,11 +253,13 @@ func FileIsExist(fn string) bool {
 	return !os.IsNotExist(err)
 }
 
-func saveToMap(ind int, fn string, m map[int]string) error {
+func saveToMap(ind int, fn string, m map[int]string, mut *sync.Mutex) error {
 	abs, err := filepath.Abs(fn)
 	if err != nil {
 		return fmt.Errorf("file abs %v", err)
 	}
+	mut.Lock()
+	defer mut.Unlock()
 	m[ind] = fmt.Sprintf("file '%v'\n", abs)
 	return nil
 }
