@@ -85,7 +85,7 @@ func onlyDown(ir, header string) error {
 	}
 	_, fn, _ := strings.Cut(ir, prefix+"/")
 	if fn != "" {
-		err = DownloadFile(ir, header, wk+"/"+fn, time.Duration(singleTimeout)*time.Second)
+		err = DownloadFile(ir, wk+"/"+fn, header, time.Duration(singleTimeout)*time.Second)
 		if err != nil {
 			return fmt.Errorf("DownloadFile %v %v", ir, err)
 		}
